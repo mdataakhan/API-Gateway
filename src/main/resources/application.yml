@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+jwt:
+  algorithm: HS256
+  secret: "this-is-a-very-long-secret-key-example-1234567890"
+  expiration: 3600000
+
+spring:
+  main:
+    web-application-type: reactive
+
+  cloud:
+    gateway:
+      default-filters:
+        - name: JwtAuthFilter
+      routes:
+        - id: public-test
+          uri: https://httpbin.org
+          predicates:
+            - Path=/test/**
+          filters:
+            - RewritePath=/test/(?<segment>.*), /${segment}
+
+        - id: auth-service
+          uri: http://localhost:9000
+          predicates:
+            - Path=/auth/**
