@@ -1,28 +1,63 @@
+# --- Server Configuration ---
 server:
   port: 8080
 
+# --- JWT Configuration ---
 jwt:
   algorithm: HS256
-  secret: "this-is-a-very-long-secret-key-example-1234567890"
+  # The secret remains Base64 encoded for security and compatibility
+  secret: dGhpcy1pcy1hLXZlcnktbG9uZy1zZWNyZXQta2V5LWV4YW1wbGUtMTIzNDU2Nzg5MA==
   expiration: 3600000
 
+# --- Spring Web Configuration ---
 spring:
   main:
     web-application-type: reactive
 
+  # --- Spring Cloud Gateway Configuration ---
   cloud:
     gateway:
       default-filters:
-        - name: JwtAuthFilter
-      routes:
-        - id: public-test
-          uri: https://httpbin.org
-          predicates:
-            - Path=/test/**
-          filters:
-            - RewritePath=/test/(?<segment>.*), /${segment}
+#        - JwtAuthFilter
 
+      routes:
         - id: auth-service
-          uri: http://localhost:9000
+          uri: http://localhost:8081
           predicates:
-            - Path=/auth/**
+            - Path=/nexus/auth/**
+          filters:
+            - StripPrefix=1
+
+        - id: user-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/nexus/users/**
+          filters:
+            - StripPrefix=1
+            # CIRCUIT BREAKER APPLIED: If user service fails, circuit opens.
+#            - CircuitBreaker=nexusCircuitBreaker
+
+        - id: product-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/nexus/products/**
+          filters:
+            - StripPrefix=1
+            # CIRCUIT BREAKER APPLIED: If product service fails, circuit opens.
+#            - CircuitBreaker=nexusCircuitBreaker
+
+# --- Resilience4j Configuration for Circuit Breaker ---
+#resilience4j:
+#  circuitbreaker:
+#    configs:
+#      default:
+#        # Configuration for the circuit breaker logic
+#        slidingWindowType: COUNT_BASED
+#        slidingWindowSize: 10
+#        failureRateThreshold: 50 # 50% failure rate to trip
+#        minimumNumberOfCalls: 5 # Must have at least 5 calls to start evaluating
+#        waitDurationInOpenState: 5s # Wait 5 seconds before trying HALF_OPEN
+#    instances:
+#      # Defines the specific instance used in the Gateway routes
+#      nexusCircuitBreaker:
+#        baseConfig: default

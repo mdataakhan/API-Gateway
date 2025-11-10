@@ -1,96 +1,99 @@
 package com.nexus.api_gateway.security;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.security.Key;
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+/**
+ * Utility class for JWT generation and validation.
+ * Uses the properties defined in application.yml.
+ * Updated to handle a List<String> of roles.
+ */
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.algorithm:HS256}")
-    private String algorithm;
-
-    @Value("${jwt.secret:}")
+    // These values are loaded from the 'jwt' section of application.yml
+    @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.public-key:}")
-    private String publicKeyPem;
+    @Value("${jwt.expiration}")
+    private long expiration; // milliseconds
 
-    private Key signingKey; // for HMAC
-    private PublicKey rsaPublicKey; // for RSA
+    @Value("${jwt.algorithm}")
+    private String algorithm; // Not strictly used by JJWT, but good practice
 
-    @PostConstruct
-    public void init() throws Exception {
-        if ("RS256".equalsIgnoreCase(algorithm)) {
-            if (publicKeyPem == null || publicKeyPem.isBlank()) {
-                throw new IllegalStateException("RS256 selected but jwt.public-key not configured");
-            }
-            // Remove PEM headers & decode
-            String pem = publicKeyPem
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replaceAll("\\s+","");
-            byte[] decoded = Base64.getDecoder().decode(pem);
-            java.security.spec.X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
-            java.security.KeyFactory kf = java.security.KeyFactory.getInstance("RSA");
-            rsaPublicKey = kf.generatePublic(spec);
-        } else {
-            // HS256 and others HMAC family
-            if (secret == null || secret.isBlank()) {
-                throw new IllegalStateException("HS256 selected but jwt.secret not configured");
-            }
-            // support if secret is base64
-            byte[] keyBytes;
-            if (isBase64(secret)) keyBytes = Decoders.BASE64.decode(secret);
-            else keyBytes = secret.getBytes();
-            signingKey = Keys.hmacShaKeyFor(keyBytes);
-        }
+    private Key getSigningKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public Jws<Claims> validateTokenAndGetClaims(String token) {
-        try {
-            JwtParserBuilder builder = Jwts.parserBuilder();
-            if ("RS256".equalsIgnoreCase(algorithm)) {
-                builder.setSigningKey(rsaPublicKey);
-            } else {
-                builder.setSigningKey(signingKey);
-            }
-            JwtParser parser = builder.build();
-            return parser.parseClaimsJws(token);
-        } catch (ExpiredJwtException e) {
-            throw e;
-        } catch (JwtException e) {
-            throw e;
-        }
+    /**
+     * Generates a JWT token containing the username (subject) and a list of roles.
+     * @param username The principal identifier (email or user ID).
+     * @param roles List of roles (SUPPLIER, FUNDER, INVESTOR, etc.).
+     * @return The signed JWT string.
+     */
+    public String generateToken(String username, List<String> roles) {
+        Map<String, Object> claims = new HashMap<>();
+        // Store roles as a list in the token payload
+        claims.put("roles", roles);
+
+        // Note: 'sub' (subject) is set to the username/email here, which serves as the ID
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(username)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
+                .compact();
     }
 
-    private boolean isBase64(String s) {
+    public Boolean validateToken(String token) {
         try {
-            // crude check
-            Base64.getDecoder().decode(s);
-            return true;
-        } catch (IllegalArgumentException ex) {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
             return false;
         }
     }
 
-    /** helper to read a claim safely as String */
-    public static String claimAsString(Claims claims, String name) {
-        Object val = claims.get(name);
-        return val == null ? null : String.valueOf(val);
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
     }
 
-    /** helper to return map of selected claims for header propagation */
-    public static Map<String, Object> claimsToMap(Claims claims) {
-        return Map.copyOf(claims);
+    /**
+     * Extracts the list of roles from the JWT claims.
+     * @param token The JWT string.
+     * @return List of roles.
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        return extractClaim(token, claims -> claims.get("roles", List.class));
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token).getBody();
     }
 }
