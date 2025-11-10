@@ -3,11 +3,11 @@ package com.nexus.api_gateway.controller;
 import com.nexus.api_gateway.dto.LoginRequest;
 import com.nexus.api_gateway.dto.LoginResponse;
 import com.nexus.api_gateway.security.JwtUtil;
-import org.springframework.core.ParameterizedTypeReference;
+import com.nexus.api_gateway.service.UserServiceClient;
+import com.nexus.api_gateway.util.UserValidationUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -15,54 +15,59 @@ import java.util.Map;
 
 /**
  * AuthController handles authentication-related endpoints.
- * Replaced Lombok with a constructor for dependency injection.
+ * Uses UserServiceClient for user validation.
  */
 @RestController
 @RequestMapping("/nexus/auth")
 public class AuthController {
 
     private final JwtUtil jwtUtil;
-    private final WebClient webClient;
-
+    private final UserServiceClient userServiceClient;
 
     /**
-     * Replaces Lombok's @RequiredArgsConstructor
+     * Constructor for dependency injection.
      */
-    public AuthController(JwtUtil jwtUtil, WebClient webClient) {
+    public AuthController(JwtUtil jwtUtil, UserServiceClient userServiceClient) {
         this.jwtUtil = jwtUtil;
-        this.webClient = webClient;
+        this.userServiceClient = userServiceClient;
     }
 
-
+    /**
+     * Handles user login requests.
+     * Validates credentials via UserServiceClient and returns JWT if successful.
+     */
     @PostMapping("/login")
     public Mono<ResponseEntity<?>> login(@RequestBody LoginRequest request) {
-        return webClient.post()
-                .uri("http://localhost:3000/api/v1/auth/validate-user")
-                .bodyValue(request)
-                .retrieve()
-                .onStatus(
-                        status -> status.isError(),
-                        clientResponse -> Mono.error(new RuntimeException("Invalid credentials"))
-                )
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .flatMap(map -> {
-                    Object dataObj = map.get("data");
-                    if (!(dataObj instanceof Map)) {
-                        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials"));
-                    }
-                    Map<String, Object> userMap = (Map<String, Object>) dataObj;
-                    String email = (String) userMap.get("email");
-                    List<String> roles = (List<String>) userMap.get("roles");
-                    if (email == null || roles == null) {
-                        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials"));
-                    }
-                    String token = jwtUtil.generateToken(email, roles);
-                    LoginResponse loginResponse = new LoginResponse(token, "Login successful");
-                    return Mono.just(ResponseEntity.ok(loginResponse));
-                })
-                .onErrorResume(error -> Mono.just(
-                        ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                .body("Authentication failed: " + error.getMessage())
-                ));
+        // Validate the login request using util class
+        if (!UserValidationUtil.isValidLoginRequest(request)) {
+            return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid login request"));
+        }
+
+        Mono<Map<String, Object>> userValidationMono = userServiceClient.validateUser(request);
+
+        Mono<ResponseEntity<?>> responseMono = userValidationMono.flatMap(responseMap -> {
+            Object dataObj = responseMap.get("data");
+
+            if (!(dataObj instanceof Map)) {
+                return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials"));
+            }
+
+            Map<String, Object> userMap = (Map<String, Object>) dataObj;
+
+            // Validate user map using util class
+            if (!UserValidationUtil.isValidUserMap(userMap)) {
+                return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials"));
+            }
+
+            String email = UserValidationUtil.extractEmail(userMap);
+            List<String> roles = UserValidationUtil.extractRoles(userMap);
+
+            String token = jwtUtil.generateToken(email, roles);
+            LoginResponse loginResponse = new LoginResponse(token, "Login successful");
+            return Mono.just(ResponseEntity.ok(loginResponse));
+        });
+
+        return responseMono.onErrorResume(error -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("Authentication failed: " + error.getMessage())));
     }
 }
