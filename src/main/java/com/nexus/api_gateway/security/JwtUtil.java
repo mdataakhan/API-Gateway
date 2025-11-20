@@ -43,10 +43,11 @@ public class JwtUtil {
      * @param roles List of roles (SUPPLIER, FUNDER, INVESTOR, etc.).
      * @return The signed JWT string.
      */
-    public String generateToken(String username, List<String> roles) {
+    public String generateToken(String username, List<String> roles, String id) {
         Map<String, Object> claims = new HashMap<>();
         // Store roles as a list in the token payload
         claims.put("roles", roles);
+        claims.put("id", id);
 
         // Note: 'sub' (subject) is set to the username/email here, which serves as the ID
         return Jwts.builder()
@@ -68,6 +69,10 @@ public class JwtUtil {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public String extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("id", String.class));
     }
 
     /**
