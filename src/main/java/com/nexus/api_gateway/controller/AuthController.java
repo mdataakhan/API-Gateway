@@ -61,8 +61,9 @@ public class AuthController {
 
             String email = UserValidationUtil.extractEmail(userMap);
             List<String> roles = UserValidationUtil.extractRoles(userMap);
+            String id = UserValidationUtil.extractId(userMap);
 
-            String token = jwtUtil.generateToken(email, roles);
+            String token = jwtUtil.generateToken(email, roles,id);
             LoginResponse loginResponse = new LoginResponse(token, "Login successful");
             return Mono.just(ResponseEntity.ok(loginResponse));
         });

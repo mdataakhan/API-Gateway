@@ -18,9 +18,17 @@ spring:
   cloud:
     gateway:
       default-filters:
-#        - JwtAuthFilter
+       - JwtAuthFilter
 
       routes:
+
+        - id: user-signup
+          uri: http://localhost:3000
+          predicates:
+            - Path=/nexus/api/v1/user
+          filters:
+            - StripPrefix=1
+
         - id: auth-service
           uri: http://localhost:8081
           predicates:
@@ -29,18 +37,27 @@ spring:
             - StripPrefix=1
 
         - id: user-service
-          uri: http://localhost:8082
+          uri: http://localhost:3000
           predicates:
-            - Path=/nexus/users/**
+            - Path=/nexus/api/v1/users/**
           filters:
             - StripPrefix=1
             # CIRCUIT BREAKER APPLIED: If user service fails, circuit opens.
 #            - CircuitBreaker=nexusCircuitBreaker
 
         - id: product-service
-          uri: http://localhost:8083
+          uri: http://localhost:3002
           predicates:
-            - Path=/nexus/products/**
+            - Path=/nexus/api/v1/product/**, /nexus/api/v1/products/**
+          filters:
+            - StripPrefix=1
+            # CIRCUIT BREAKER APPLIED: If product service fails, circuit opens.
+#            - CircuitBreaker=nexusCircuitBreaker
+
+        - id: investment-service
+          uri: http://localhost:3004
+          predicates:
+            - Path=/nexus/api/v1/funding-request/**
           filters:
             - StripPrefix=1
             # CIRCUIT BREAKER APPLIED: If product service fails, circuit opens.

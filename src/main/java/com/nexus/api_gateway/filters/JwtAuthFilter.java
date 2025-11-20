@@ -1,8 +1,13 @@
 package com.nexus.api_gateway.filters;
 
 import com.nexus.api_gateway.security.JwtUtil;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -33,8 +38,9 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
 
+            
             // 1. Skip authentication check for the /auth and /actuator/health routes
-            if (request.getURI().getPath().contains("/nexus/auth") || request.getURI().getPath().contains("/actuator/health")) {
+            if (request.getURI().getPath().contains("/nexus/auth") || request.getURI().getPath().contains("/actuator/health") || request.getURI().getPath().contains("/nexus/api/v1/user")) {
                 // For non-secured routes, just pass a default header for rate limiting
                 ServerHttpRequest modifiedRequest = request.mutate()
                         .header(USER_ID_HEADER, "ANONYMOUS")
@@ -60,11 +66,44 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
                     return this.onError(exchange, "JWT validation failed", HttpStatus.UNAUTHORIZED);
                 }
 
-                String userId = jwtUtil.extractUsername(token); // The email is the ID here
+                String userEmail = jwtUtil.extractUsername(token); // The email is the ID here
+
+
+                String userId = jwtUtil.extractUserId(token);
+
+                // Extract the ID from path if present
+                String path = request.getURI().getPath();
+
+                          //check for user id cross update
+                if (path.matches(".*/users/[^/]+$")) {
+                    String pathUserId = path.substring(path.lastIndexOf("/") + 1);
+                
+                    if (!userId.equals(pathUserId)) {
+                        return this.onError(exchange, 
+                            "You are not allowed to modify another user's data", 
+                            HttpStatus.FORBIDDEN);
+                    }
+                }
+                List<String> roles = jwtUtil.extractRoles(token);
+                String method = request.getMethod().name();
+
+                // Restrict POST and PUT for product-service to only SUPPLIER role
+                if (path.startsWith("/nexus/api/v1/product") || path.startsWith("/nexus/api/v1/products")) {
+
+                    if (method.equals("POST") || method.equals("PUT")) {
+
+                        if (!roles.contains("SUPPLIER")|| roles.contains("Supplier") || roles.contains("supplier")) {
+                            return this.onError(exchange,
+                                    "Only suppliers are allowed to modify/ create product data",
+                                    HttpStatus.FORBIDDEN);
+                        }
+                    }
+                }
 
                 // 4. Modify the request: Add the X-User-ID header
                 ServerHttpRequest modifiedRequest = request.mutate()
-                        .header(USER_ID_HEADER, userId)
+                        .header(USER_ID_HEADER, userEmail)
+                        .header("X-User-Id", userId)
                         .build();
 
                 // Continue to the next filter (RateLimiterFilter)
@@ -78,8 +117,11 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
 
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
         exchange.getResponse().setStatusCode(httpStatus);
-        // Optional: Log error
-        // System.out.println("JWT Error: " + err);
-        return exchange.getResponse().setComplete();
+        exchange.getResponse().getHeaders().add("Content-Type", "text/plain");
+        byte[] bytes = err.getBytes(StandardCharsets.UTF_8);
+        DataBuffer buffer = exchange.getResponse()
+                                   .bufferFactory()
+                                   .wrap(bytes);
+        return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 }
