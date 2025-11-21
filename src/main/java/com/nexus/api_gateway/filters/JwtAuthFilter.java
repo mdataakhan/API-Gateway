@@ -71,20 +71,6 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
 
                 String userId = jwtUtil.extractUserId(token);
 
-                // Extract the ID from path if present
-                String path = request.getURI().getPath();
-
-                          //check for user id cross update
-                if (path.matches(".*/users/[^/]+$")) {
-                    String pathUserId = path.substring(path.lastIndexOf("/") + 1);
-                
-                    if (!userId.equals(pathUserId)) {
-                        return this.onError(exchange, 
-                            "You are not allowed to modify another user's data", 
-                            HttpStatus.FORBIDDEN);
-                    }
-                }
-
                 // 4. Modify the request: Add the X-User-ID header
                 ServerHttpRequest modifiedRequest = request.mutate()
                         .header(USER_ID_HEADER, userEmail)
