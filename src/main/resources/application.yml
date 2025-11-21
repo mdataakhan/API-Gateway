@@ -35,6 +35,7 @@ spring:
             - Path=/nexus/api/v1/product/**, /nexus/api/v1/products/**
           filters:
             - StripPrefix=1
+            - ProductAuthorizationFilter
 
         - id: investment-service
           uri: http://localhost:3004

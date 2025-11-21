@@ -84,21 +84,6 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
                             HttpStatus.FORBIDDEN);
                     }
                 }
-                List<String> roles = jwtUtil.extractRoles(token);
-                String method = request.getMethod().name();
-
-                // Restrict POST and PUT for product-service to only SUPPLIER role
-                if (path.startsWith("/nexus/api/v1/product") || path.startsWith("/nexus/api/v1/products")) {
-
-                    if (method.equals("POST") || method.equals("PUT")) {
-
-                        if (!roles.contains("SUPPLIER")|| roles.contains("Supplier") || roles.contains("supplier")) {
-                            return this.onError(exchange,
-                                    "Only suppliers are allowed to modify/ create product data",
-                                    HttpStatus.FORBIDDEN);
-                        }
-                    }
-                }
 
                 // 4. Modify the request: Add the X-User-ID header
                 ServerHttpRequest modifiedRequest = request.mutate()
