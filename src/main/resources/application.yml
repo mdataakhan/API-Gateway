@@ -39,6 +39,6 @@ spring:
         - id: investment-service
           uri: http://localhost:3004
           predicates:
-            - Path=/nexus/api/v1/funding-request/**
+            - Path=/nexus/api/v1/funding-requests/**
           filters:
             - StripPrefix=1
