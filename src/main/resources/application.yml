@@ -18,7 +18,7 @@ spring:
   cloud:
     gateway:
       default-filters:
-       - JwtAuthFilter
+        - JwtAuthFilter
 
       routes:
 
@@ -42,3 +42,12 @@ spring:
             - Path=/nexus/api/v1/funding-requests/**
           filters:
             - StripPrefix=1
+            - FundingRequestAuthorizationFilter
+
+
+        - id: order-service
+          uri: http://localhost:3007
+          predicates:
+               - Path=/nexus/api/v1/orders/**
+          filters:
+               - StripPrefix=1
