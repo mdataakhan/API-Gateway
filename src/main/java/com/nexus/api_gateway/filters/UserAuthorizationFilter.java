@@ -28,7 +28,6 @@ public class UserAuthorizationFilter extends AbstractGatewayFilterFactory<Object
 
     private final JwtUtil jwtUtil;
 
-    public static final String USER_ID_HEADER = "X-User-Id"; // header populated by JwtAuthFilter
     public UserAuthorizationFilter(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
     }

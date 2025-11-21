@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import static com.nexus.api_gateway.util.Constants.USER_ID_HEADER;
+
 /**
  * JWT Authentication Filter
  * 1. Validates JWT.
@@ -26,8 +28,6 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<Object> {
 
     private final JwtUtil jwtUtil;
 
-    // Use the same header name constant as the RateLimiterFilter
-    public static final String USER_ID_HEADER = "X-User-ID";
 
     public JwtAuthFilter(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
