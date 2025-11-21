@@ -28,6 +28,7 @@ spring:
             - Path=/nexus/api/v1/user, /nexus/api/v1/users/**
           filters:
             - StripPrefix=1
+            - UserAuthorizationFilter
 
         - id: product-service
           uri: http://localhost:3002
