@@ -53,3 +53,4 @@ spring:
                - Path=/nexus/api/v1/orders/**
           filters:
                - StripPrefix=1
+               - OrderAuthorizationFilter
