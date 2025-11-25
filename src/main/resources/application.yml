@@ -25,7 +25,7 @@ spring:
         - id: user-service
           uri: http://localhost:3000
           predicates:
-            - Path=/nexus/api/v1/user, /nexus/api/v1/users/**
+            - Path=/nexus/api/v1/user, /nexus/api/v1/users/**, /nexus/api/v1/wallet/**
           filters:
             - StripPrefix=1
             - UserAuthorizationFilter
