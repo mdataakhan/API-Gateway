@@ -29,6 +29,10 @@ spring:
           filters:
             - StripPrefix=1
             - UserAuthorizationFilter
+            - name: CircuitBreaker
+              args:
+                name: userServiceCB
+                fallbackUri: forward:/fallback/users
 
         - id: product-service
           uri: http://localhost:3002
@@ -37,6 +41,11 @@ spring:
           filters:
             - StripPrefix=1
             - ProductAuthorizationFilter
+            - name: CircuitBreaker
+              args:
+                name: productServiceCB
+                fallbackUri: forward:/fallback/products
+
 
         - id: investment-service
           uri: http://localhost:3004
@@ -45,7 +54,10 @@ spring:
           filters:
             - StripPrefix=1
             - FundingRequestAuthorizationFilter
-
+            - name: CircuitBreaker
+              args:
+                name: investmentServiceCB
+                fallbackUri: forward:/fallback/funding-requests
 
         - id: order-service
           uri: http://localhost:3007
@@ -54,3 +66,7 @@ spring:
           filters:
                - StripPrefix=1
                - OrderAuthorizationFilter
+               - name: CircuitBreaker
+                 args:
+                   name: orderServiceCB
+                   fallbackUri: forward:/fallback/orders
