@@ -19,6 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/nexus/auth")
+@CrossOrigin("*")
 public class AuthController {
 
     private final JwtUtil jwtUtil;
